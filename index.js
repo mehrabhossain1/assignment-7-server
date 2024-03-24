@@ -33,6 +33,8 @@ async function run() {
     const db = client.db("assignment");
     const collection = db.collection("users");
     const donationsCollection = db.collection("donations");
+    const topDonorsCollection = db.collection("topDonors");
+    const commentsCollection = db.collection("comments");
 
     // User Registration
     app.post("/api/v1/register", async (req, res) => {
@@ -245,6 +247,155 @@ async function run() {
         });
       } catch (error) {
         console.error("Error deleting donation:", error);
+        res.status(500).json({
+          success: false,
+          message: "Internal server error",
+        });
+      }
+    });
+
+    // Leaderboard
+    app.get("/api/v1/leaderboard", async (req, res) => {
+      try {
+        // Aggregate to calculate total donations by each user and sort in descending order
+        const topDonors = await donationsCollection
+          .aggregate([
+            {
+              $group: {
+                _id: "$userId",
+                totalAmount: { $sum: "$amount" },
+              },
+            },
+            {
+              $sort: { totalAmount: -1 },
+            },
+            {
+              $limit: 10, // Limit to top 10 donors
+            },
+          ])
+          .toArray();
+
+        // Update top donors collection
+        await topDonorsCollection.deleteMany({}); // Clear previous data
+        await topDonorsCollection.insertMany(topDonors); // Insert new top donors data
+
+        res.json({
+          success: true,
+          message: "Top donors updated successfully",
+          topDonors,
+        });
+      } catch (error) {
+        console.error("Error updating top donors:", error);
+        res.status(500).json({
+          success: false,
+          message: "Internal server error",
+        });
+      }
+    });
+
+    app.post("/api/v1/top-donors", async (req, res) => {
+      try {
+        const { userId, totalAmount } = req.body;
+
+        // Validate userId and totalAmount
+        if (!userId || !totalAmount) {
+          return res.status(400).json({
+            success: false,
+            message: "userId and totalAmount are required fields",
+          });
+        }
+
+        // Insert the new top donor into the top donors collection
+        await topDonorsCollection.insertOne({
+          userId,
+          totalAmount,
+          timestamp: new Date(),
+        });
+
+        res.status(201).json({
+          success: true,
+          message: "Top donor added successfully",
+        });
+      } catch (error) {
+        console.error("Error adding top donor:", error);
+        res.status(500).json({
+          success: false,
+          message: "Internal server error",
+        });
+      }
+    });
+
+    app.post("/api/v1/comments", async (req, res) => {
+      try {
+        const { text } = req.body;
+
+        // Insert new comment into the database
+        const result = await commentsCollection.insertOne({
+          text,
+          timestamp: new Date(),
+        });
+
+        res.status(201).json({
+          success: true,
+          message: "Comment posted successfully",
+          commentId: result.insertedId,
+        });
+      } catch (error) {
+        console.error("Error posting comment:", error);
+        res.status(500).json({
+          success: false,
+          message: "Internal server error",
+        });
+      }
+    });
+
+    // Get all comments
+    app.get("/api/v1/comments", async (req, res) => {
+      try {
+        const comments = await commentsCollection.find().toArray();
+        res.json({
+          success: true,
+          comments,
+        });
+      } catch (error) {
+        console.error("Error fetching comments:", error);
+        res.status(500).json({
+          success: false,
+          message: "Internal server error",
+        });
+      }
+    });
+
+    app.post("/api/v1/testimonials", async (req, res) => {
+      try {
+        const { postId, author, message } = req.body;
+
+        // Check if the postId exists
+        const existingPost = await donationsCollection.findOne({
+          _id: new ObjectId(postId),
+        });
+        if (!existingPost) {
+          return res.status(404).json({
+            success: false,
+            message: "Donation post not found",
+          });
+        }
+
+        // Insert the new testimonial into the testimonials collection
+        const result = await testimonialsCollection.insertOne({
+          postId,
+          author,
+          message,
+          timestamp: new Date(),
+        });
+
+        res.status(201).json({
+          success: true,
+          message: "Testimonial created successfully",
+          testimonialId: result.insertedId,
+        });
+      } catch (error) {
+        console.error("Error creating testimonial:", error);
         res.status(500).json({
           success: false,
           message: "Internal server error",
