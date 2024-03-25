@@ -11,7 +11,7 @@ const port = process.env.PORT || 5000;
 // Middleware
 app.use(
   cors({
-    origin: "http://localhost:5173",
+    origin: "https://splendorous-piroshki-b84b3d.netlify.app",
     credentials: true,
   })
 );
