@@ -11,7 +11,7 @@ const port = process.env.PORT || 5000;
 // Middleware
 app.use(
   cors({
-    origin: "https://startling-seahorse-4904d4.netlify.app",
+    origin: "http://localhost:5173",
     credentials: true,
   })
 );
